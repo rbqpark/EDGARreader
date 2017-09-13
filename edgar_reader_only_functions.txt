@@ -1,0 +1,95 @@
+from bs4 import BeautifulSoup
+import time
+import datetime
+import os
+import requests
+import urllib.request
+
+url_dict = {'SEC': 'http://www.sec.gov', '10K': 'http://www.sec.gov/cgi-bin/current?q1=0&q2=0&q3=', '10Q': 'http://www.sec.gov/cgi-bin/current?q1=0&q2=1&q3='}
+
+link_dict = {}
+dl_dict = {}
+names_dict = {}
+
+def find_date():
+    return str(datetime.datetime.now().strftime("%Y-%m-%d"))
+
+def select_url(formtype, t):
+    indicator = "q1=" + str(t)
+    return url_dict[formtype].replace("q1=0", indicator)
+
+def find_links(formtype, t, link_dict={}):
+    def soupify(formtype):
+        if type(formtype) != str or not(formtype in url_dict):
+            raise Error
+        return BeautifulSoup(requests.get(select_url(formtype, t)).content, "html.parser")
+    soup_form = soupify(formtype)
+    links = soup_form.find_all("a")
+    index, skip, counter = 0, "skip", 0
+    for link in links:
+        if type(index) == int:
+            link_dict[index] = link.get("href")
+            index = skip
+            counter += 1
+        elif type(index) == str:
+            index = counter
+    del link_dict[len(link_dict) - 1]
+    return link_dict
+
+def reset(dictionary):
+    dictionary.clear()
+
+def find_files(link_dict, dl_dict={}):
+    for i in range(len(link_dict)):
+        soup_form = BeautifulSoup(requests.get(url_dict['SEC'] + link_dict[i]).content, "html.parser")
+        links = soup_form.find_all("a")
+        dl_dict[i] = links[9].get("href")
+    return dl_dict
+
+def retrieve_names(formtype, t):
+    if type(formtype) != str or not(formtype in url_dict):
+        raise Error
+    soup_form = BeautifulSoup(requests.get(select_url(formtype, t)).content, "html.parser")
+    temp_names = soup_form.get_text("|")[239:].replace(" ", "").split("|")
+    i = 0
+    for name in temp_names:
+         if name == "\n" or name == "10-Q" or name == "" or "googletagmanager.com" in name or "Generatedat" in name:
+                 pass
+         else:
+                 if "\n" in name:
+                     names_dict[i] = name.split("\n")[0].replace("/", " ")
+                     i += 1
+    return names_dict
+
+def dl_files(formtype, t):
+    state_time = time.time()
+    if not(0 <= t < 5):
+        raise Error
+    link_dict = find_links(formtype, t)
+    dl_dict = find_files(link_dict)
+    names_dict = retrieve_names(formtype, t)
+    date = find_date()
+    desired_path = "C:\Python34\ " + date + "_" + formtype + "_T-" + str(t)
+    desired_path.replace(" ", "")
+    if not os.path.exists(desired_path):
+        os.makedirs(desired_path)
+    os.chdir(desired_path)
+    for i in range(len(dl_dict)):
+        requested = urllib.request.Request(url_dict['SEC'] + dl_dict[i])
+        response = urllib.request.urlopen(requested)
+        company = names_dict[i]
+        file_name = company + ".htm"
+        new_file = open(file_name, 'wb')
+        new_file.write(response.read())
+        new_file.close()
+    reset(dl_dict)
+    print("Runtime: %s seconds" % (time.time() - state_time))
+    print("Finished downloading, check Python directory.")
+
+def extract_tables(_____):
+    os.chdir(desired_path)
+    new_file = ("filename", "wb")
+    for i in range(len(tables)): #where tables is a list returned by executing soup.find_all("table")
+        table = str(tables[i])
+        new_file.write(bytes(table, "UTF-8"))
+    new_file.close()
